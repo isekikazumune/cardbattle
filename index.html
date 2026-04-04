@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordBattle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- SCREEN 1: ロビー -->
+<div id="screen-lobby" class="screen active">
+  <div class="lobby-box">
+    <h1>⚔ WordBattle</h1>
+    <p>英単語対戦カードゲーム</p>
+    <input id="inp-name" type="text" placeholder="プレイヤー名を入力" maxlength="12" autocomplete="off">
+    <div class="btn-row">
+      <button id="btn-create" class="btn btn-primary">ルーム作成</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('join-area').classList.toggle('hidden')">参加する</button>
+    </div>
+    <div id="join-area" class="hidden" style="margin-top:16px">
+      <input id="inp-code" type="text" placeholder="ルームコード（4文字）" maxlength="4" style="text-transform:uppercase;letter-spacing:.2rem">
+      <button id="btn-join" class="btn btn-primary" style="width:100%;margin-top:8px">参加</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 2: 待機 -->
+<div id="screen-waiting" class="screen">
+  <div class="waiting-box">
+    <h2 style="color:#7c9ef5">ルーム作成完了</h2>
+    <p style="margin-top:8px;color:#888">このコードを相手に伝えてください</p>
+    <div class="room-code" id="room-code-display">----</div>
+    <p><span class="status-dot"></span>相手の接続を待っています...</p>
+  </div>
+</div>
+
+<!-- SCREEN 3: 設定 -->
+<div id="screen-settings" class="screen">
+  <div class="settings-box">
+    <h2>ゲーム設定</h2>
+    <div id="settings-host-ui">
+      <p style="color:#888;margin-bottom:12px">ターン数</p>
+      <div class="turn-select">
+        <button class="turn-btn" data-turns="6">6</button>
+        <button class="turn-btn selected" data-turns="10">10</button>
+        <button class="turn-btn" data-turns="16">16</button>
+        <button class="turn-btn" data-turns="20">20</button>
+        <button class="turn-btn" data-turns="30">30</button>
+      </div>
+      <p style="color:#888;margin:20px 0 12px">単語の範囲（全1500語）</p>
+      <div class="range-select">
+        <button class="range-btn selected" data-start="0" data-end="299">No.1〜300</button>
+        <button class="range-btn" data-start="300" data-end="599">No.301〜600</button>
+        <button class="range-btn" data-start="600" data-end="899">No.601〜900</button>
+        <button class="range-btn" data-start="900" data-end="1199">No.901〜1200</button>
+        <button class="range-btn" data-start="1200" data-end="1499">No.1201〜1500</button>
+        <button class="range-btn" data-start="0" data-end="1499">全範囲</button>
+      </div>
+      <button id="btn-start-game" class="btn btn-primary" style="width:100%;margin-top:20px">ゲーム開始</button>
+    </div>
+    <div id="settings-guest-msg" class="hidden">
+      <p style="color:#888"><span class="status-dot"></span>ホストがゲームを開始するのを待っています...</p>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 4: ゲーム -->
+<div id="screen-game" class="screen">
+
+  <div class="score-bar">
+    <div class="player-score" id="score-me">
+      <div class="name">---</div>
+      <div class="pts">0</div>
+    </div>
+    <div class="turn-info" id="turn-display">ターン <span>1</span> / 10</div>
+    <div class="player-score" id="score-opp">
+      <div class="name">---</div>
+      <div class="pts">0</div>
+    </div>
+  </div>
+
+  <div id="item-area" class="item-area hidden">
+    <h3>アイテム（任意）</h3>
+    <div id="items-grid" class="items-grid"></div>
+  </div>
+
+  <div id="hand-area" class="hand-area hidden">
+    <h3>あなたの手札</h3>
+    <div id="hand" class="hand"></div>
+  </div>
+
+  <div id="question-area" class="question-area hidden">
+    <div class="question-label" id="q-label">問題</div>
+    <div class="question-word" id="q-word">---</div>
+    <div class="timer-bar hidden" id="timer-bar">
+      <div class="timer-fill" id="timer-fill"></div>
+    </div>
+  </div>
+
+  <div id="choices-area" class="choices-area hidden">
+    <div class="choice" data-dir="up" id="choice-up">
+      <div class="key-hint">↑</div>
+      <div class="choice-text">---</div>
+    </div>
+    <div class="choice" data-dir="left" id="choice-left">
+      <div class="key-hint">←</div>
+      <div class="choice-text">---</div>
+    </div>
+    <div class="choice" data-dir="right" id="choice-right">
+      <div class="key-hint">→</div>
+      <div class="choice-text">---</div>
+    </div>
+    <div class="choice" data-dir="down" id="choice-down">
+      <div class="key-hint">↓</div>
+      <div class="choice-text">---</div>
+    </div>
+  </div>
+
+  <div class="status-msg" id="status-msg">準備中...</div>
+  <div class="action-area" id="action-area"></div>
+
+</div>
+
+<!-- SCREEN 5: 結果 -->
+<div id="screen-result" class="screen">
+  <div class="result-box">
+    <div class="result-title" id="result-title">---</div>
+    <div class="result-scores">
+      <div class="result-player" id="result-me">
+        <div class="rname" id="result-me-name">---</div>
+        <div class="rscore" id="result-me-score">0</div>
+      </div>
+      <div style="display:flex;align-items:center;font-size:1.5rem;color:#444">vs</div>
+      <div class="result-player" id="result-opp">
+        <div class="rname" id="result-opp-name">---</div>
+        <div class="rscore" id="result-opp-score">0</div>
+      </div>
+    </div>
+    <button id="btn-again" class="btn btn-primary" style="width:100%">もう一度プレイ</button>
+  </div>
+</div>
+
+<!-- Firebase SDK v9 compat -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="vocab.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
