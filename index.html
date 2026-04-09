@@ -48,16 +48,24 @@
         <button class="turn-btn" data-turns="20">20</button>
         <button class="turn-btn" data-turns="30">30</button>
       </div>
-      <p style="color:#888;margin:20px 0 12px">単語の範囲（全1500語）</p>
-      <div class="range-select">
-        <button class="range-btn selected" data-start="0" data-end="299">No.1〜300</button>
-        <button class="range-btn" data-start="300" data-end="599">No.301〜600</button>
-        <button class="range-btn" data-start="600" data-end="899">No.601〜900</button>
-        <button class="range-btn" data-start="900" data-end="1199">No.901〜1200</button>
-        <button class="range-btn" data-start="1200" data-end="1499">No.1201〜1500</button>
+      <p style="color:#888;margin:20px 0 10px">単語の範囲（全1500語）</p>
+      <div class="range-input-row">
+        <span style="color:#888;font-size:.85rem">No.</span>
+        <input id="inp-range-start" type="number" min="1" max="1500" value="1" class="range-num-input">
+        <span style="color:#888">〜</span>
+        <input id="inp-range-end" type="number" min="1" max="1500" value="300" class="range-num-input">
+        <button id="btn-range-set" class="btn btn-secondary" style="padding:8px 14px;font-size:.85rem">設定</button>
+      </div>
+      <div class="range-select" style="margin-top:8px">
+        <button class="range-btn selected" data-start="0" data-end="99">1〜100</button>
+        <button class="range-btn" data-start="0" data-end="299">1〜300</button>
+        <button class="range-btn" data-start="0" data-end="499">1〜500</button>
+        <button class="range-btn" data-start="500" data-end="999">501〜1000</button>
+        <button class="range-btn" data-start="1000" data-end="1499">1001〜1500</button>
         <button class="range-btn" data-start="0" data-end="1499">全範囲</button>
       </div>
-      <button id="btn-start-game" class="btn btn-primary" style="width:100%;margin-top:20px">ゲーム開始</button>
+      <div id="range-status" style="font-size:.78rem;color:#7c9ef5;margin-top:8px">現在: No.1〜100</div>
+      <button id="btn-start-game" class="btn btn-primary" style="width:100%;margin-top:16px">ゲーム開始</button>
     </div>
     <div id="settings-guest-msg" class="hidden">
       <p style="color:#888"><span class="status-dot"></span>ホストがゲームを開始するのを待っています...</p>
@@ -97,6 +105,8 @@
       <div class="timer-fill" id="timer-fill"></div>
     </div>
   </div>
+
+  <div id="fifteen-area" class="fifteen-area hidden"></div>
 
   <div id="choices-area" class="choices-area hidden">
     <div class="choice" data-dir="up" id="choice-up">

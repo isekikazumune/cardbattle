@@ -107,19 +107,68 @@ body {
 .turn-btn.selected { background: #7c9ef5; border-color: #7c9ef5; color: #0f0f1a; }
 
 /* ===== RANGE SELECT ===== */
-.range-select { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.range-select { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .range-btn {
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 8px;
   background: #0f0f1a;
   border: 2px solid #2a2a4a;
   color: #e8e8f0;
-  font-size: .82rem;
+  font-size: .78rem;
   font-weight: 600;
   cursor: pointer;
   transition: all .15s;
 }
 .range-btn.selected { background: #7c9ef5; border-color: #7c9ef5; color: #0f0f1a; }
+
+/* ===== RANGE NUMBER INPUT ===== */
+.range-input-row { display: flex; align-items: center; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.range-num-input {
+  width: 72px;
+  padding: 7px 6px;
+  background: #0f0f1a;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #e8e8f0;
+  font-size: .9rem;
+  text-align: center;
+}
+.range-num-input:focus { outline: none; border-color: #7c9ef5; }
+
+/* ===== 15-CHOICE AREA ===== */
+.fifteen-area {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.fifteen-choice {
+  background: #1a1a2e;
+  border: 2px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+  font-size: .82rem;
+  font-weight: 600;
+  color: #e8e8f0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+.fifteen-choice:active:not(.correct):not(.wrong) { transform: scale(0.95); opacity: .85; }
+.fifteen-choice.correct  { border-color: #42c97a; background: #0a2a18; }
+.fifteen-choice.wrong    { border-color: #e05555; background: #2a0a0a; }
+.fifteen-choice.selected { border-color: #7c9ef5; background: #0a1a3a; }
+.fifteen-choice.disabled { pointer-events: none; }
 
 /* ===== GAME SCREEN ===== */
 #screen-game { max-width: 900px; }
@@ -347,6 +396,10 @@ small { color: #666; font-size: .8rem; }
 
   /* アイテムボタン */
   .btn-item { font-size: .75rem; padding: 6px 10px; }
+
+  /* 15択 */
+  .fifteen-area { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .fifteen-choice { min-height: 48px; font-size: .75rem; padding: 8px 4px; }
 
   /* 設定画面 */
   .settings-box { padding: 24px 16px; }

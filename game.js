@@ -20,11 +20,13 @@ const KEY_TO_DIR = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRigh
 const ITEMS = [
   { id:'timer',   label:'⏱ タイムアタック', desc:'3秒以内に解答' },
   { id:'reverse', label:'🔄 逆問題',         desc:'日本語→英語で出題' },
-  { id:'partial', label:'👁 3文字ヒント',     desc:'先頭3文字のみ表示' },
+  { id:'partial', label:'👁 先頭3文字',       desc:'先頭3文字のみ表示' },
+  { id:'tail2',   label:'👁 後ろ2文字',       desc:'後ろ2文字のみ表示' },
   { id:'half',    label:'✂ ポイント半分',     desc:'今回の獲得ポイントが半分' },
   { id:'double',  label:'💥 2問連続',         desc:'カードを2枚出題' },
   { id:'risk',    label:'⚡ ハイリスク',       desc:'正解+15 / 不正解-10' },
   { id:'flash',   label:'💨 フラッシュ',       desc:'1秒で問題が消える' },
+  { id:'fifteen', label:'🎯 15択',             desc:'選択肢が15個に増える' },
 ];
 
 // ── ローカル状態 ──────────────────────────────────────────
@@ -38,10 +40,12 @@ let selectedItem  = null;
 let selectedCards = [];
 let keyLocked     = false;
 let advancePending = false;
+let flashFired    = false;   // フラッシュ発火済みフラグ
+let timerStarted  = false;   // タイマー起動済みフラグ
 let currentHand   = [];       // ★ 手札のローカルキャッシュ
 let currentGame   = null;     // ★ gameオブジェクトのローカルキャッシュ
 let currentPlayers = null;    // ★ playersのローカルキャッシュ
-let vocabRange    = { start: 0, end: 299 }; // ★ 単語範囲（Firebase設定と同期）
+let vocabRange    = { start: 0, end: 99 }; // ★ 単語範囲（Firebase設定と同期）
 
 // ============================================================
 //  Firebase
@@ -104,12 +108,12 @@ function pickCards(deck, n) {
   return { picked, remaining: copy };
 }
 
-function buildChoices(correctIdx, isReverse) {
+function buildChoices(correctIdx, isReverse, numChoices = 4) {
   const correct = isReverse ? VOCAB[correctIdx].w : VOCAB[correctIdx].m;
   const pool = [];
   const { start, end } = vocabRange;
   const rangeSize = end - start + 1;
-  while (pool.length < 3) {
+  while (pool.length < numChoices - 1) {
     const r = start + Math.floor(Math.random() * rangeSize);
     if (r !== correctIdx && !pool.includes(r)) pool.push(r);
   }
@@ -119,7 +123,9 @@ function buildChoices(correctIdx, isReverse) {
     const j = Math.floor(Math.random() * (i + 1));
     [all[i], all[j]] = [all[j], all[i]];
   }
-  return { choices: all, correctDir: DIRS[all.indexOf(correct)] };
+  const cidx = all.indexOf(correct);
+  // 4択: 方向キー名、15択: インデックス文字列
+  return { choices: all, correctDir: numChoices === 4 ? DIRS[cidx] : String(cidx) };
 }
 
 // ============================================================
@@ -139,7 +145,7 @@ function onCreateRoom() {
       p1: { name: myName, score: 0 },
       p2: { name: '',     score: 0 }
     },
-    settings: { totalTurns: 10, vocabRange: { start: 0, end: 299 } },
+    settings: { totalTurns: 10, vocabRange: { start: 0, end: 99 } },
     game: {
       currentTurn:  1,
       activePlayer: 'p1',
@@ -211,6 +217,14 @@ function onSelectRange(start, end) {
     b.classList.toggle('selected',
       parseInt(b.dataset.start) === start && parseInt(b.dataset.end) === end)
   );
+  // 数字入力欄を更新
+  const sEl = document.getElementById('inp-range-start');
+  const eEl = document.getElementById('inp-range-end');
+  if (sEl) sEl.value = start + 1;
+  if (eEl) eEl.value = end + 1;
+  // ステータス表示
+  const statusEl = document.getElementById('range-status');
+  if (statusEl) statusEl.textContent = `現在: No.${start + 1}〜${end + 1}（${end - start}語）`;
   db.ref(`rooms/${roomId}/settings/vocabRange`).set({ start, end });
 }
 
@@ -293,10 +307,17 @@ function renderGame(room) {
   const choicesArea = document.getElementById('choices-area');
   const statusMsg   = document.getElementById('status-msg');
 
+  // ── select フェーズ移行時にフラグをリセット ──
+  if (phase === 'select') {
+    flashFired   = false;
+    timerStarted = false;
+  }
+
   // ── select フェーズ（アイテム選択 + カード選択を同一画面で）──
   if (phase === 'select') {
     qArea.classList.add('hidden');
     choicesArea.classList.add('hidden');
+    document.getElementById('fifteen-area').classList.add('hidden');
 
     if (isMyTurn) {
       // ★ 手札キャッシュ更新（Firebase は配列を object で返す場合があるため toArray で変換）
@@ -321,12 +342,13 @@ function renderGame(room) {
     itemArea.classList.add('hidden');
     handArea.classList.add('hidden');
     qArea.classList.remove('hidden');
-    choicesArea.classList.remove('hidden');
+    // choicesArea / fifteen-area の表示は renderQuestion 内で切り替え
 
     renderQuestion(game, isMyTurn);
 
     if (!isMyTurn) {
-      statusMsg.textContent = '矢印キー（↑↓←→）で解答してください';
+      const isFifteen = game.question?.choices?.length > 4;
+      statusMsg.textContent = isFifteen ? '選択肢をタップして解答してください' : '矢印キー（↑↓←→）で解答してください';
       statusMsg.className   = 'status-msg';
     } else {
       const label = phase === 'answering2' ? '【2問目 出題中】' : '【出題中】';
@@ -341,7 +363,7 @@ function renderGame(room) {
     itemArea.classList.add('hidden');
     handArea.classList.add('hidden');
     qArea.classList.remove('hidden');
-    choicesArea.classList.remove('hidden');
+    // choicesArea / fifteen-area の表示は renderQuestion 内で切り替え
 
     renderQuestion(game, isMyTurn);
 
@@ -432,25 +454,30 @@ function submitQuestion() {
     const isDouble   = item === 'double';
     const isReverse  = item === 'reverse';
     const isPartial  = item === 'partial';
+    const isTail2    = item === 'tail2';
+    const isFifteen  = item === 'fifteen';
+    const numChoices = isFifteen ? 15 : 4;
 
     const cardIndices  = selectedCards.slice();
     const vocabIndices = cardIndices.map(i => hand[i]);
 
+    function makeWord(vIdx) {
+      if (isPartial) return VOCAB[vIdx].w.slice(0, 3) + '_'.repeat(Math.max(0, VOCAB[vIdx].w.length - 3));
+      if (isTail2)   return '_'.repeat(Math.max(0, VOCAB[vIdx].w.length - 2)) + VOCAB[vIdx].w.slice(-2);
+      return isReverse ? VOCAB[vIdx].m : VOCAB[vIdx].w;
+    }
+
     // 1問目
     const v1 = vocabIndices[0];
-    const { choices: c1, correctDir: cd1 } = buildChoices(v1, isReverse);
-    const word1 = isPartial
-      ? VOCAB[v1].w.slice(0, 3) + '_'.repeat(Math.max(0, VOCAB[v1].w.length - 3))
-      : isReverse ? VOCAB[v1].m : VOCAB[v1].w;
+    const { choices: c1, correctDir: cd1 } = buildChoices(v1, isReverse, numChoices);
+    const word1 = makeWord(v1);
 
     // 2問目（double のみ）
     let pendingQuestion = null;
     if (isDouble && vocabIndices[1] !== undefined) {
       const v2 = vocabIndices[1];
-      const { choices: c2, correctDir: cd2 } = buildChoices(v2, isReverse);
-      const word2 = isPartial
-        ? VOCAB[v2].w.slice(0, 3) + '_'.repeat(Math.max(0, VOCAB[v2].w.length - 3))
-        : isReverse ? VOCAB[v2].m : VOCAB[v2].w;
+      const { choices: c2, correctDir: cd2 } = buildChoices(v2, isReverse, numChoices);
+      const word2 = makeWord(v2);
       pendingQuestion = { vocabIdx: v2, word: word2, choices: c2, correctDir: cd2, item };
     }
 
@@ -485,60 +512,98 @@ function renderQuestion(game, isQuestioner) {
 
   const wordEl  = document.getElementById('q-word');
   const labelEl = document.getElementById('q-label');
+  const isFifteen = q.choices && q.choices.length > 4;
 
-  wordEl.textContent = q.word;
-  wordEl.classList.remove('hidden');
+  // 問題文
+  if (!flashFired) {
+    wordEl.textContent = q.word;
+    wordEl.classList.remove('hidden');
+  }
 
   const isQ2 = game.phase === 'answering2';
   labelEl.textContent = isQuestioner
     ? (isQ2 ? '【2問目 出題中】' : '【出題中】')
     : (isQ2 ? '【2問目】解答してください' : '【解答してください】');
 
-  // フラッシュ: 解答側のみ、answeringフェーズのみ起動
-  if (q.item === 'flash' && !isQuestioner && game.answer === null) {
-    clearTimeout(timerHandle);
-    timerHandle = setTimeout(() => wordEl.classList.add('hidden'), 1000);
+  // フラッシュ: 解答側のみ、未解答時のみ起動（一度だけ）
+  if (q.item === 'flash' && !isQuestioner && !game.answer) {
+    if (!flashFired) {
+      flashFired = true;
+      clearTimeout(timerHandle);
+      timerHandle = setTimeout(() => wordEl.classList.add('hidden'), 1000);
+    }
   }
 
-  // タイマーバー
+  // タイマーバー: 解答側のみ、未解答時のみ起動（一度だけ）
   const timerBar  = document.getElementById('timer-bar');
   const timerFill = document.getElementById('timer-fill');
-  const showTimer = q.item === 'timer' && !isQuestioner && game.answer === null;
-
-  if (showTimer) {
+  if (q.item === 'timer' && !isQuestioner && !game.answer) {
     timerBar.classList.remove('hidden');
-    timerFill.style.transition = 'none';
-    timerFill.style.width = '100%';
-    requestAnimationFrame(() => {
-      timerFill.style.transition = 'width 3s linear';
-      timerFill.style.width = '0%';
-    });
-    clearTimeout(timerHandle);
-    timerHandle = setTimeout(() => {
-      if (currentGame?.phase === 'answering' || currentGame?.phase === 'answering2') {
-        submitAnswer('timeout', currentGame);
-      }
-    }, 3000);
+    if (!timerStarted) {
+      timerStarted = true;
+      timerFill.style.transition = 'none';
+      timerFill.style.width = '100%';
+      requestAnimationFrame(() => {
+        timerFill.style.transition = 'width 3s linear';
+        timerFill.style.width = '0%';
+      });
+      clearTimeout(timerHandle);
+      timerHandle = setTimeout(() => {
+        if (currentGame?.phase === 'answering' || currentGame?.phase === 'answering2') {
+          submitAnswer('timeout', currentGame);
+        }
+      }, 3000);
+    }
   } else {
     timerBar.classList.add('hidden');
   }
 
-  // 4択描画（タップ操作は choices-area の委譲リスナーで一元管理）
-  DIRS.forEach(dir => {
-    const el = document.getElementById(`choice-${dir}`);
-    el.querySelector('.choice-text').textContent = q.choices[DIRS.indexOf(dir)];
-    el.classList.remove('correct', 'wrong', 'selected', 'disabled');
-  });
+  // 15択 or 4択の表示切替
+  const choicesArea = document.getElementById('choices-area');
+  const fifteenArea = document.getElementById('fifteen-area');
 
-  // 解答済みなら色付け
-  if (game.answer) {
+  if (isFifteen) {
+    choicesArea.classList.add('hidden');
+    fifteenArea.classList.remove('hidden');
+    renderFifteenChoices(q, game);
+  } else {
+    fifteenArea.classList.add('hidden');
+    choicesArea.classList.remove('hidden');
+    // 4択描画
     DIRS.forEach(dir => {
       const el = document.getElementById(`choice-${dir}`);
-      if (dir === q.correctDir)                                 el.classList.add('correct');
-      if (dir === game.answer && game.answer !== q.correctDir)  el.classList.add('wrong');
-      if (dir === game.answer)                                  el.classList.add('selected');
+      el.querySelector('.choice-text').textContent = q.choices[DIRS.indexOf(dir)];
+      el.classList.remove('correct', 'wrong', 'selected', 'disabled');
     });
+    if (game.answer) {
+      DIRS.forEach(dir => {
+        const el = document.getElementById(`choice-${dir}`);
+        if (dir === q.correctDir)                                el.classList.add('correct');
+        if (dir === game.answer && game.answer !== q.correctDir) el.classList.add('wrong');
+        if (dir === game.answer)                                 el.classList.add('selected');
+      });
+    }
   }
+}
+
+// ── 15択描画 ─────────────────────────────────────────────
+function renderFifteenChoices(q, game) {
+  const area = document.getElementById('fifteen-area');
+  area.innerHTML = '';
+  const correctIdx = parseInt(q.correctDir);
+  q.choices.forEach((choice, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'fifteen-choice';
+    btn.dataset.idx = String(i);
+    btn.textContent = choice;
+    if (game.answer !== undefined && game.answer !== null && game.answer !== '') {
+      if (i === correctIdx)                                        btn.classList.add('correct');
+      if (game.answer === String(i) && i !== correctIdx)          btn.classList.add('wrong');
+      if (game.answer === String(i))                              btn.classList.add('selected');
+      btn.classList.add('disabled');
+    }
+    area.appendChild(btn);
+  });
 }
 
 // ── キー入力（解答） ──────────────────────────────────────
@@ -553,6 +618,7 @@ function onKeyDown(e) {
   if (game.activePlayer === myId) return; // 出題側は解答しない
   if (game.answer) return;               // 解答済み
   if (keyLocked)   return;
+  if (game.question?.choices?.length > 4) return; // 15択はキー操作無効
 
   keyLocked = true;
   submitAnswer(dir, game);
@@ -684,11 +750,34 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () =>
       onSelectRange(parseInt(btn.dataset.start), parseInt(btn.dataset.end)))
   );
+  // マニュアル範囲入力
+  document.getElementById('btn-range-set').addEventListener('click', () => {
+    const s = parseInt(document.getElementById('inp-range-start').value) || 1;
+    const e = parseInt(document.getElementById('inp-range-end').value)   || 300;
+    const start = Math.max(0, Math.min(s - 1, 1499));
+    const end   = Math.max(start, Math.min(e - 1, 1499));
+    onSelectRange(start, end);
+  });
   document.getElementById('btn-start-game').addEventListener('click', onStartGame);
   document.addEventListener('keydown', onKeyDown);
   document.getElementById('btn-again').addEventListener('click', onPlayAgain);
 
-  // ★ 選択肢タップ/クリック（イベント委譲: 一度だけ登録して確実に動作させる）
+  // ★ 15択タップ/クリック
+  document.getElementById('fifteen-area').addEventListener('pointerdown', (e) => {
+    const choice = e.target.closest('.fifteen-choice');
+    if (!choice) return;
+    const idx = choice.dataset.idx;
+    if (!currentGame) return;
+    if (currentGame.phase !== 'answering' && currentGame.phase !== 'answering2') return;
+    if (currentGame.activePlayer === myId) return;
+    if (currentGame.answer) return;
+    if (keyLocked) return;
+    e.preventDefault();
+    keyLocked = true;
+    submitAnswer(idx, currentGame);
+  });
+
+  // ★ 4択タップ/クリック（イベント委譲: 一度だけ登録して確実に動作させる）
   document.getElementById('choices-area').addEventListener('pointerdown', (e) => {
     // タップ/クリックされた要素、またはその親が .choice かを調べる
     const choice = e.target.closest('.choice');
