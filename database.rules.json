@@ -3,7 +3,17 @@
     "rooms": {
       "$roomId": {
         ".read": "auth != null",
-        ".write": "auth != null"
+        ".write": "auth != null",
+        "status":   { ".validate": "newData.isString()" },
+        "settings": { ".validate": "newData.hasChildren(['totalTurns','vocabRange'])" },
+        "players": {
+          "$playerId": {
+            ".validate": "$playerId === 'p1' || $playerId === 'p2'",
+            "name":  { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "score": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+          }
+        },
+        "game": { ".validate": "newData.hasChildren(['phase'])" }
       }
     }
   }
